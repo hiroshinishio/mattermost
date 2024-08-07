@@ -1393,7 +1393,7 @@ func TestConfigSanitize(t *testing.T) {
 		QueryTimeLag:     NewPointer("QueryTimeLag"),
 	}}
 
-	c.Sanitize()
+	c.Sanitize(nil)
 
 	assert.Equal(t, FakeSetting, *c.LdapSettings.BindPassword)
 	assert.Equal(t, FakeSetting, *c.FileSettings.PublicLinkSalt)
@@ -1415,9 +1415,61 @@ func TestConfigSanitize(t *testing.T) {
 	t.Run("with default config", func(t *testing.T) {
 		c := Config{}
 		c.SetDefaults()
-		c.Sanitize()
+		c.Sanitize(nil)
 
 		assert.Len(t, c.SqlSettings.ReplicaLagSettings, 0)
+	})
+
+	t.Run("sanitizing plugin setting", func(t *testing.T) {
+		c := Config{}
+		c.SetDefaults()
+		c.PluginSettings.Plugins = map[string]map[string]any{
+			"plugin.id": {
+				"somesetting":  "some value",
+				"secrettext":   "a secret",
+				"secretnumber": 123,
+			},
+			"another.plugin": {
+				"somesetting": 123,
+			},
+		}
+
+		c.Sanitize([]*Manifest{
+			{
+				Id: "plugin.id",
+				SettingsSchema: &PluginSettingsSchema{
+					Settings: []*PluginSetting{
+						{
+							Key:    "somesetting",
+							Type:   "text",
+							Secret: false,
+						},
+						{
+							Key:    "secrettext",
+							Type:   "text",
+							Secret: true,
+						},
+						{
+							Key:    "secretnumber",
+							Type:   "number",
+							Secret: true,
+						},
+					},
+				},
+			},
+		})
+
+		expected := map[string]map[string]any{
+			"plugin.id": {
+				"somesetting":  "some value",
+				"secrettext":   FakeSetting,
+				"secretnumber": FakeSetting,
+			},
+			"another.plugin": {
+				"somesetting": 123,
+			},
+		}
+		assert.Equal(t, expected, c.PluginSettings.Plugins)
 	})
 }
 

@@ -3216,6 +3216,30 @@ func (s *PluginSettings) SetDefaults(ls LogSettings) {
 	}
 }
 
+func (s *PluginSettings) Sanitize(pluginManifests []*Manifest) {
+	manifestMap := make(map[string]*Manifest, len(pluginManifests))
+
+	for _, manifest := range pluginManifests {
+		manifestMap[manifest.Id] = manifest
+	}
+
+	for id, settings := range s.Plugins {
+		manifest := manifestMap[id]
+		if manifest == nil {
+			// Don't sanitize plugin settings for plugins that are not installed
+			continue
+		}
+		for key, _ := range settings {
+			for _, definedSetting := range manifest.SettingsSchema.Settings {
+				if definedSetting.Key == key && definedSetting.Secret {
+					settings[key] = FakeSetting
+					break
+				}
+			}
+		}
+	}
+}
+
 type WranglerSettings struct {
 	PermittedWranglerRoles                   []string
 	AllowedEmailDomain                       []string
@@ -4385,7 +4409,7 @@ func (o *Config) GetSanitizeOptions() map[string]bool {
 	return options
 }
 
-func (o *Config) Sanitize() {
+func (o *Config) Sanitize(pluginManifests []*Manifest) {
 	if o.LdapSettings.BindPassword != nil && *o.LdapSettings.BindPassword != "" {
 		*o.LdapSettings.BindPassword = FakeSetting
 	}
@@ -4451,6 +4475,8 @@ func (o *Config) Sanitize() {
 	if o.ServiceSettings.SplitKey != nil {
 		*o.ServiceSettings.SplitKey = FakeSetting
 	}
+
+	o.PluginSettings.Sanitize(pluginManifests)
 }
 
 // structToMapFilteredByTag converts a struct into a map removing those fields that has the tag passed
