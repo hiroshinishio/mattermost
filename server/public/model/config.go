@@ -3231,7 +3231,7 @@ func (s *PluginSettings) Sanitize(pluginManifests []*Manifest) {
 		}
 		for key, _ := range settings {
 			for _, definedSetting := range manifest.SettingsSchema.Settings {
-				if definedSetting.Key == key && definedSetting.Secret {
+				if definedSetting.Secret && strings.EqualFold(definedSetting.Key, key) {
 					settings[key] = FakeSetting
 					break
 				}
